@@ -9,13 +9,25 @@ function leadingZero (num: number) {
         return convertToText(num)
     }
 }
-// Upload readings to USB
+// Send readings to radio receiver
 input.onButtonPressed(Button.A, function () {
     readingsLength = dateTimeReadings.length
-    for (let index = 0; index <= readingsLength - 1; index++) {
-        radio.sendString("*" + dateTimeReadings[index])
-        radio.sendString("" + (airPressureReadings[index]))
-        radio.sendString(temperatureReadings[index])
+    if (readingsLength != 0) {
+        for (let index = 0; index <= readingsLength - 1; index++) {
+            ack = 0
+            radio.sendString("*" + dateTimeReadings[index])
+            // Wait until we get ACK
+            while (ack == 0) {
+                basic.pause(1)
+            }
+            ack = 0
+            radio.sendString("" + (airPressureReadings[index]))
+            while (ack == 0) {
+                basic.pause(1)
+            }
+            ack = 0
+            radio.sendString(temperatureReadings[index])
+        }
     }
 })
 function airPressure () {
@@ -39,6 +51,13 @@ input.onButtonPressed(Button.AB, function () {
     0
     )
     basic.showIcon(IconNames.Yes)
+})
+radio.onReceivedString(function (receivedString) {
+    if (receivedString == "ACK") {
+        ack = 1
+    } else {
+        ack = 0
+    }
 })
 // Delete readings array
 input.onButtonPressed(Button.B, function () {
@@ -67,6 +86,7 @@ function temperature () {
 // Set alarm time and mode
 let pressure = 0
 let readingsLength = 0
+let ack = 0
 let temperatureReadings: string[] = []
 let airPressureReadings: number[] = []
 let dateTimeReadings: string[] = []
@@ -76,6 +96,7 @@ let readingsMax = 200
 dateTimeReadings = []
 airPressureReadings = []
 temperatureReadings = []
+ack = 0
 DS3231.configureINTCN(interruptEnable.Enable)
 DS3231.clearAlarmFlag(alarmNum.A1)
 DS3231.clearAlarmFlag(alarmNum.A2)
@@ -89,10 +110,10 @@ mode.Minute,
 )
 DS3231.disableAlarm(alarmNum.A1, interruptEnable.Enable)
 DS3231.disableAlarm(alarmNum.A2, interruptEnable.Disable)
-// Initial messages, to check the upload code
-radio.sendString("*" + dateTimeString())
-radio.sendString("" + (airPressure()))
-radio.sendString("" + (temperature()))
+// Send initial readings to USB as a test
+serial.writeLine("" + (dateTimeString()))
+serial.writeLine("" + (airPressure()))
+serial.writeLine("" + (temperature()))
 // Poll pin P0 to see if alarm is set
 basic.forever(function () {
     // Check if the alarm has triggered
